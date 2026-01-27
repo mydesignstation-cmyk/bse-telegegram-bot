@@ -37,10 +37,58 @@ def save_last_seen(data):
         json.dump(data, f)
 
 def check_bse():
-    print(f"BOT_TOKEN exists: {BOT_TOKEN is not None}")
-    print(f"CHAT_ID: {CHAT_ID}")
-    print("Sending forced Telegram test message…")
-    send_telegram("🧪 FORCE TEST: Telegram delivery check")
+    print("Fetching BSE page…")
+    r = requests.get(BSE_URL, headers=HEADERS, timeout=15)
+    print("HTTP status:", r.status_code)
+
+    soup = BeautifulSoup(r.text, "html.parser")
+
+    table = soup.find("table")
+    if not table:
+        print("❌ No table found on page")
+        return
+
+    rows = table.find_all("tr")[1:]
+    print("Announcement rows found:", len(rows))
+
+    if not rows:
+        print("❌ No announcement rows")
+        return
+
+    cols = rows[0].find_all("td")
+    if len(cols) < 3:
+        print("❌ Unexpected column structure")
+        return
+
+    date = cols[0].text.strip()
+    scrip = cols[1].text.strip()
+    title = cols[2].text.strip()
+
+    link_tag = cols[2].find("a")
+    pdf = link_tag["href"] if link_tag else ""
+
+    current = {
+        "date": date,
+        "scrip": scrip,
+        "title": title,
+        "pdf": pdf
+    }
+
+    last_seen = load_last_seen()
+
+    if current != last_seen:
+        message = (
+            "📢 NEW BSE ANNOUNCEMENT\n\n"
+            f"Date: {date}\n"
+            f"Scrip: {scrip}\n"
+            f"Title: {title}\n\n"
+            f"{pdf}"
+        )
+        send_telegram(message)
+        save_last_seen(current)
+        print("✅ New announcement sent")
+    else:
+        print("ℹ️ No new announcement")
 
 if __name__ == "__main__":
     check_bse()
