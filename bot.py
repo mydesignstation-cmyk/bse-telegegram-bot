@@ -110,17 +110,21 @@ def check_bse():
 
     rows = table.find_all("tr")
     print(f"ℹ️ Found {len(rows)} rows in announcements table")
-    if len(rows) < 2:
-        print("⚠️ No announcement rows available")
+
+    # find the first row that looks like an announcement (has at least 3 columns)
+    target_row = None
+    for r in rows[1:]:
+        cols = r.find_all("td")
+        if len(cols) >= 3:
+            target_row = r
+            break
+
+    if not target_row:
+        print("⚠️ No suitable announcement row found")
         return
 
-    row = rows[1]
-    cols = row.find_all("td")
-    print(f"ℹ️ Found {len(cols)} columns in the first announcement row")
-
-    if len(cols) < 3:
-        print("⚠️ Not enough columns to parse announcement")
-        return
+    cols = target_row.find_all("td")
+    print(f"ℹ️ Found {len(cols)} columns in selected announcement row")
 
     date = cols[0].text.strip()
     scrip = cols[1].text.strip()
