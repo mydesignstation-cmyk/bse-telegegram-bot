@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID_STR = os.getenv("CHAT_ID")
 CHAT_ID = int(CHAT_ID_STR) if CHAT_ID_STR else None
+FORCE_SEND = os.getenv("FORCE_SEND", "0").lower() in ("1", "true", "yes")
 
 STATE_FILE = "last_seen.json"
 BSE_URL = "https://www.bseindia.com/corporates/ann.html"
@@ -135,9 +136,11 @@ def check_bse():
     current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
     print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
 
-    if current == load_last_seen():
+    if current == load_last_seen() and not FORCE_SEND:
         print("ℹ️ Announcement matches last_seen; no action taken")
         return
+    if FORCE_SEND and current == load_last_seen():
+        print("⚠️ FORCE_SEND enabled — overriding last_seen and forcing send")
 
     emoji, tag = classify(title)
     print(f"ℹ️ Classification result: emoji={emoji} tag={tag}")
@@ -154,6 +157,7 @@ def check_bse():
         f"{pdf}"
     )
 
+    print(f"📨 Payload: {message}")
     print("📨 Sending Telegram message...")
     send_telegram(message)
     print("💾 Updating last_seen.json")
