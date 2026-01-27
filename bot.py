@@ -46,9 +46,18 @@ COMBINATION_RULES = [
 
 def send_telegram(msg):
     if not BOT_TOKEN or not CHAT_ID:
+        print("⚠️ send_telegram: missing BOT_TOKEN or CHAT_ID; message not sent")
         return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": CHAT_ID, "text": msg}, timeout=10)
+    try:
+        resp = requests.post(url, json={"chat_id": CHAT_ID, "text": msg}, timeout=10)
+        print(f"📤 Telegram send status: {resp.status_code}")
+        try:
+            print(f"📥 Telegram response: {resp.text}")
+        except Exception:
+            pass
+    except Exception as exc:
+        print(f"❌ Telegram send failed: {exc}")
 
 def load_last_seen():
     try:
@@ -66,35 +75,51 @@ def classify(title):
 
     for words, label in COMBINATION_RULES:
         if all(w in text for w in words):
+            print(f"🔎 classify: matched combination rule {words} -> {label}")
             return "🚨", label
 
     if any(k in text for k in CRITICAL_KEYWORDS):
+        print(f"🔎 classify: matched CRITICAL keyword in title")
         return "🚨", "CRITICAL"
 
     if any(k in text for k in IMPORTANT_KEYWORDS):
+        print(f"🔎 classify: matched IMPORTANT keyword in title")
         return "⚠️", "IMPORTANT"
 
     if any(k in text for k in IGNORE_KEYWORDS):
+        print(f"🔎 classify: matched IGNORE keyword in title; will skip")
         return None, None
 
+    print(f"🔎 classify: no keywords matched; defaulting to INFO")
     return "ℹ️", "INFO"
 
 def check_bse():
-    r = requests.get(BSE_URL, headers=HEADERS, timeout=15)
-    soup = BeautifulSoup(r.text, "html.parser")
+    print("🔍 Fetching BSE announcements...")
+    try:
+        r = requests.get(BSE_URL, headers=HEADERS, timeout=15)
+        print(f"🔁 Fetch status: {r.status_code}")
+        soup = BeautifulSoup(r.text, "html.parser")
+    except Exception as exc:
+        print(f"❌ Error fetching BSE page: {exc}")
+        return
 
     table = soup.find("table")
     if not table:
+        print("⚠️ No table found on BSE page")
         return
 
     rows = table.find_all("tr")
+    print(f"ℹ️ Found {len(rows)} rows in announcements table")
     if len(rows) < 2:
+        print("⚠️ No announcement rows available")
         return
 
     row = rows[1]
     cols = row.find_all("td")
+    print(f"ℹ️ Found {len(cols)} columns in the first announcement row")
 
     if len(cols) < 3:
+        print("⚠️ Not enough columns to parse announcement")
         return
 
     date = cols[0].text.strip()
@@ -104,11 +129,16 @@ def check_bse():
     pdf = link["href"] if link else ""
 
     current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
+    print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
+
     if current == load_last_seen():
+        print("ℹ️ Announcement matches last_seen; no action taken")
         return
 
     emoji, tag = classify(title)
+    print(f"ℹ️ Classification result: emoji={emoji} tag={tag}")
     if not emoji:
+        print("ℹ️ Announcement ignored by keyword filters; updating state and exiting")
         save_last_seen(current)
         return
 
@@ -120,7 +150,9 @@ def check_bse():
         f"{pdf}"
     )
 
+    print("📨 Sending Telegram message...")
     send_telegram(message)
+    print("💾 Updating last_seen.json")
     save_last_seen(current)
 
 if __name__ == "__main__":
