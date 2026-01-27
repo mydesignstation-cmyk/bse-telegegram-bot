@@ -17,10 +17,13 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID,
-        "text": message,
-        "disable_web_page_preview": True
+        "text": message
     }
-    requests.post(url, json=payload, timeout=10)
+
+    resp = requests.post(url, json=payload, timeout=10)
+
+    print("Telegram status code:", resp.status_code)
+    print("Telegram response:", resp.text)
 
 def load_last_seen():
     try:
@@ -34,61 +37,8 @@ def save_last_seen(data):
         json.dump(data, f)
 
 def check_bse():
-    # Heartbeat (TEMPORARY)
-    send_telegram("🧪 Bot heartbeat: GitHub Actions is running")
-
-    print("Fetching BSE page…")
-    r = requests.get(BSE_URL, headers=HEADERS, timeout=15)
-    print("HTTP status:", r.status_code)
-
-    soup = BeautifulSoup(r.text, "html.parser")
-
-    table = soup.find("table")
-    if not table:
-        print("❌ No table found on page")
-        return
-
-    rows = table.find_all("tr")[1:]
-    print("Announcement rows found:", len(rows))
-
-    if not rows:
-        print("❌ No announcement rows")
-        return
-
-    cols = rows[0].find_all("td")
-    if len(cols) < 3:
-        print("❌ Unexpected column structure")
-        return
-
-    date = cols[0].text.strip()
-    scrip = cols[1].text.strip()
-    title = cols[2].text.strip()
-
-    link_tag = cols[2].find("a")
-    pdf = link_tag["href"] if link_tag else ""
-
-    current = {
-        "date": date,
-        "scrip": scrip,
-        "title": title,
-        "pdf": pdf
-    }
-
-    last_seen = load_last_seen()
-
-    if current != last_seen:
-        message = (
-            "🧪 TEST MODE – NEW BSE ANNOUNCEMENT\n\n"
-            f"Date: {date}\n"
-            f"Scrip: {scrip}\n"
-            f"Title: {title}\n\n"
-            f"{pdf}"
-        )
-        send_telegram(message)
-        save_last_seen(current)
-        print("✅ New announcement sent")
-    else:
-        print("ℹ️ No new announcement")
+    print("Sending forced Telegram test message…")
+    send_telegram("🧪 FORCE TEST: Telegram delivery check")
 
 if __name__ == "__main__":
     check_bse()
