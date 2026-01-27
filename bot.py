@@ -30,7 +30,7 @@ def load_last_seen():
         with open(STATE_FILE, "r") as f:
             return json.load(f)
     except:
-        return {}
+        return []
 
 def save_last_seen(data):
     with open(STATE_FILE, "w") as f:
@@ -49,39 +49,67 @@ def check_bse():
     if not rows:
         return
 
-    cols = rows[0].find_all("td")
-    if len(cols) < 3:
-        return
+    last_seen_list = load_last_seen()
+    new_announcements = []
 
-    date = cols[0].text.strip()
-    scrip = cols[1].text.strip()
-    title = cols[2].text.strip()
+    # Check all rows for new announcements
+    for row in rows[:10]:  # Check first 10 announcements
+        cols = row.find_all("td")
+        if len(cols) < 3:
+            continue
 
-    link_tag = cols[2].find("a")
-    pdf = link_tag["href"] if link_tag else ""
+        date = cols[0].text.strip()
+        scrip = cols[1].text.strip()
+        title = cols[2].text.strip()
 
-    current = {
-        "date": date,
-        "scrip": scrip,
-        "title": title,
-        "pdf": pdf
-    }
+        link_tag = cols[2].find("a")
+        pdf = link_tag["href"] if link_tag else ""
 
-    last_seen = load_last_seen()
+        announcement = {
+            "date": date,
+            "scrip": scrip,
+            "title": title,
+            "pdf": pdf
+        }
 
-    if current == last_seen:
-        return
+        # Check if this announcement is new
+        if announcement not in last_seen_list:
+            new_announcements.append(announcement)
 
-    message = (
-        "📢 NEW BSE ANNOUNCEMENT\n\n"
-        f"Date: {date}\n"
-        f"Scrip: {scrip}\n"
-        f"Title: {title}\n\n"
-        f"{pdf}"
-    )
+    # Send notifications for new announcements (in reverse order - oldest first)
+    for announcement in reversed(new_announcements):
+        message = (
+            "📢 NEW BSE ANNOUNCEMENT\n\n"
+            f"Date: {announcement['date']}\n"
+            f"Scrip: {announcement['scrip']}\n"
+            f"Title: {announcement['title']}\n\n"
+            f"{announcement['pdf']}"
+        )
+        send_telegram(message)
 
-    send_telegram(message)
-    save_last_seen(current)
+    # Update last_seen with current announcements
+    if rows:
+        current_announcements = []
+        for row in rows[:10]:
+            cols = row.find_all("td")
+            if len(cols) < 3:
+                continue
+
+            date = cols[0].text.strip()
+            scrip = cols[1].text.strip()
+            title = cols[2].text.strip()
+
+            link_tag = cols[2].find("a")
+            pdf = link_tag["href"] if link_tag else ""
+
+            current_announcements.append({
+                "date": date,
+                "scrip": scrip,
+                "title": title,
+                "pdf": pdf
+            })
+
+        save_last_seen(current_announcements)
 
 # --- ENTRY ---
 if __name__ == "__main__":
