@@ -4,7 +4,8 @@ import os
 from bs4 import BeautifulSoup
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))
+CHAT_ID_STR = os.getenv("CHAT_ID")
+CHAT_ID = int(CHAT_ID_STR) if CHAT_ID_STR else None
 
 STATE_FILE = "last_seen.json"
 BSE_URL = "https://www.bseindia.com/corporates/ann.html"
@@ -44,6 +45,8 @@ COMBINATION_RULES = [
 ]
 
 def send_telegram(msg):
+    if not BOT_TOKEN or not CHAT_ID:
+        return
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": CHAT_ID, "text": msg}, timeout=10)
 
@@ -84,8 +87,15 @@ def check_bse():
     if not table:
         return
 
-    row = table.find_all("tr")[1]
+    rows = table.find_all("tr")
+    if len(rows) < 2:
+        return
+
+    row = rows[1]
     cols = row.find_all("td")
+
+    if len(cols) < 3:
+        return
 
     date = cols[0].text.strip()
     scrip = cols[1].text.strip()
