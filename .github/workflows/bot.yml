@@ -2,7 +2,7 @@ name: BSE Telegram Bot
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # every 10 minutes
+    - cron: "* * * * *"   # every 1 minute
   workflow_dispatch:
 
 permissions:
