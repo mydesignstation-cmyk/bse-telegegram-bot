@@ -1,0 +1,32 @@
+name: Dispatch BSE Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch to run the bot workflow on'
+        required: false
+        default: 'v2.0-keyword-severity-engine'
+  push:
+    branches:
+      - 'v2.0-keyword-severity-engine'
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dispatch bot workflow
+        env:
+          PAT: ${{ secrets.repo_secret }}
+          REF: ${{ github.event.inputs.ref || 'v2.0-keyword-severity-engine' }}
+        run: |
+          echo "Dispatching bot.yml to $REF"
+          curl -s -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $PAT" \
+            https://api.github.com/repos/mydesignstation-cmyk/bse-telegegram-bot/actions/workflows/bot.yml/dispatches \
+            -d "{\"ref\": \"$REF\"}" -o /tmp/dispatch_response.json -w "\nHTTP_CODE:%{http_code}\n"
+          echo "--- response ---"
+          cat /tmp/dispatch_response.json || true
+          echo "----------------"
