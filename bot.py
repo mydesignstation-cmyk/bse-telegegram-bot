@@ -22,7 +22,10 @@ def send_telegram(message):
         "text": message,
         "disable_web_page_preview": True
     }
-    requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=10)
+    print(f"Telegram API Response: {resp.status_code}")
+    print(f"Telegram Response Body: {resp.text}")
+    return resp
 
 # --- STATE ---
 def load_last_seen():
@@ -38,6 +41,8 @@ def save_last_seen(data):
 
 # --- CORE LOGIC ---
 def check_bse():
+    print(f"🔧 Debug - BOT_TOKEN exists: {BOT_TOKEN is not None}")
+    print(f"🔧 Debug - CHAT_ID: {CHAT_ID}")
     print("🔍 Fetching BSE page...")
     response = requests.get(BSE_URL, headers=HEADERS, timeout=15)
     soup = BeautifulSoup(response.text, "html.parser")
