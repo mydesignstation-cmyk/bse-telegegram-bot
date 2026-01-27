@@ -122,6 +122,18 @@ def check_bse():
         save_last_seen(current_announcements)
         print(f"💾 Saved {len(current_announcements)} announcements to state")
 
+        # If no new announcements, send top 3 latest as heartbeat
+        if len(new_announcements) == 0 and len(current_announcements) > 0:
+            print("💓 No new announcements. Sending top 3 latest as heartbeat...")
+            heartbeat_message = "💓 BOT HEARTBEAT - Top 3 Latest BSE Announcements:\n\n"
+            for i, announcement in enumerate(current_announcements[:3], 1):
+                heartbeat_message += (
+                    f"{i}. {announcement['scrip']} ({announcement['date']})\n"
+                    f"   {announcement['title'][:60]}...\n\n"
+                )
+            send_telegram(heartbeat_message)
+            print("✅ Heartbeat sent")
+
 # --- ENTRY ---
 if __name__ == "__main__":
     check_bse()
