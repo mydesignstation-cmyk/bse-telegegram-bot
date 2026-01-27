@@ -57,13 +57,24 @@ def check_bse():
         'strToDate': today,
         'strType': 'C'
     }
-    
-    response = requests.get(BSE_API_URL, params=params, headers=HEADERS, timeout=15)
-    
-    if response.status_code != 200:
-        print(f"❌ API request failed with status {response.status_code}")
+
+    response = None
+    for attempt in range(3):
+        try:
+            response = requests.get(BSE_API_URL, params=params, headers=HEADERS, timeout=20)
+            if response.status_code == 200:
+                break
+            else:
+                print(f"⚠️ API attempt {attempt+1} failed with status {response.status_code}")
+        except requests.exceptions.Timeout:
+            print(f"⏳ API attempt {attempt+1} timed out, retrying...")
+        except Exception as exc:
+            print(f"❌ API attempt {attempt+1} error: {exc}")
+        
+    if response is None or response.status_code != 200:
+        print("❌ API request failed after retries")
         return
-    
+
     data = response.json()
     announcements = data.get('Table', [])
     
