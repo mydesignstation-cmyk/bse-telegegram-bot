@@ -1,7 +1,7 @@
 import requests
 import json
 import os
-from bs4 import BeautifulSoup
+from datetime import datetime
 
 # --- ENV ---
 # Hardcoded for debugging - ROTATE THESE AFTER TESTING!
@@ -9,10 +9,12 @@ BOT_TOKEN = "8218210704:AAH-yaFbYCd-L8bWrUqySGnDq9KLKOgjZrI"
 CHAT_ID = -1003770513009  # Must be int
 
 STATE_FILE = "last_seen.json"
-BSE_URL = "https://www.bseindia.com/corporates/ann.html"
+BSE_API_URL = "https://api.bseindia.com/BseIndiaAPI/api/AnnGetData/w"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Referer": "https://www.bseindia.com/",
+    "Origin": "https://www.bseindia.com"
 }
 
 # --- TELEGRAM ---
@@ -44,57 +46,67 @@ def save_last_seen(data):
 def check_bse():
     print(f"🔧 Debug - BOT_TOKEN exists: {BOT_TOKEN is not None}")
     print(f"🔧 Debug - CHAT_ID: {CHAT_ID}")
-    print("🔍 Fetching BSE page...")
-    response = requests.get(BSE_URL, headers=HEADERS, timeout=15)
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    table = soup.find("table")
-    if not table:
-        print("❌ No table found")
+    print("🔍 Fetching BSE announcements via API...")
+    
+    today = datetime.now().strftime('%Y%m%d')
+    params = {
+        'strCat': '-1',
+        'strPrevDate': today,
+        'strScrip': '',
+        'strSearch': 'P',
+        'strToDate': today,
+        'strType': 'C'
+    }
+    
+    response = requests.get(BSE_API_URL, params=params, headers=HEADERS, timeout=15)
+    
+    if response.status_code != 200:
+        print(f"❌ API request failed with status {response.status_code}")
         return
-
-    rows = table.find_all("tr")[1:]
-    if not rows:
-        print("❌ No rows found")
+    
+    data = response.json()
+    announcements = data.get('Table', [])
+    
+    if not announcements:
+        print("❌ No announcements found")
         return
-
-    print(f"✅ Found {len(rows)} total rows")
+    
+    print(f"✅ Found {len(announcements)} total announcements")
 
     last_seen_list = load_last_seen()
     print(f"📋 Previously tracked: {len(last_seen_list)} announcements")
     new_announcements = []
 
-    # Check all rows for new announcements
-    for row in rows[:10]:  # Check first 10 announcements
-        cols = row.find_all("td")
-        if len(cols) < 3:
-            continue
-
-        date = cols[0].text.strip()
-        scrip = cols[1].text.strip()
-        title = cols[2].text.strip()
-
-        link_tag = cols[2].find("a")
-        pdf = link_tag["href"] if link_tag else ""
-
+    # Check first 10 announcements for new ones
+    for ann in announcements[:10]:
+        news_id = ann.get('NEWSID', '')
+        scrip = ann.get('SLONGNAME', '')
+        title = ann.get('NEWSSUB', '')
+        category = ann.get('CATEGORYNAME', '')
+        news_dt = ann.get('NEWS_DT', '')
+        attachment = ann.get('ATTACHMENTNAME', '')
+        
+        pdf_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{attachment}" if attachment else ""
+        
         announcement = {
-            "date": date,
+            "news_id": news_id,
             "scrip": scrip,
             "title": title,
-            "pdf": pdf
+            "category": category,
+            "date": news_dt,
+            "pdf": pdf_url
         }
 
-        # Check if this announcement is new
         if announcement not in last_seen_list:
             new_announcements.append(announcement)
             print(f"🆕 New: {scrip} - {title[:50]}")
 
     print(f"📢 Total new announcements: {len(new_announcements)}")
 
-    # Send notifications for new announcements (in reverse order - oldest first)
     for announcement in reversed(new_announcements):
         message = (
             "📢 NEW BSE ANNOUNCEMENT\n\n"
+            f"Category: {announcement['category']}\n"
             f"Date: {announcement['date']}\n"
             f"Scrip: {announcement['scrip']}\n"
             f"Title: {announcement['title']}\n\n"
@@ -103,38 +115,29 @@ def check_bse():
         send_telegram(message)
         print(f"✅ Sent notification for {announcement['scrip']}")
 
-    # Update last_seen with current announcements
-    if rows:
-        current_announcements = []
-        for row in rows[:10]:
-            cols = row.find_all("td")
-            if len(cols) < 3:
-                continue
-
-            date = cols[0].text.strip()
-            scrip = cols[1].text.strip()
-            title = cols[2].text.strip()
-
-            link_tag = cols[2].find("a")
-            pdf = link_tag["href"] if link_tag else ""
-
-            current_announcements.append({
-                "date": date,
-                "scrip": scrip,
-                "title": title,
-                "pdf": pdf
-            })
+    if announcements:
+        current_announcements = [
+            {
+                "news_id": ann.get('NEWSID', ''),
+                "scrip": ann.get('SLONGNAME', ''),
+                "title": ann.get('NEWSSUB', ''),
+                "category": ann.get('CATEGORYNAME', ''),
+                "date": ann.get('NEWS_DT', ''),
+                "pdf": f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{ann.get('ATTACHMENTNAME', '')}" if ann.get('ATTACHMENTNAME') else ""
+            }
+            for ann in announcements[:10]
+        ]
 
         save_last_seen(current_announcements)
         print(f"💾 Saved {len(current_announcements)} announcements to state")
 
-        # If no new announcements, send top 3 latest as heartbeat
         if len(new_announcements) == 0 and len(current_announcements) > 0:
             print("💓 No new announcements. Sending top 3 latest as heartbeat...")
             heartbeat_message = "💓 BOT HEARTBEAT - Top 3 Latest BSE Announcements:\n\n"
             for i, announcement in enumerate(current_announcements[:3], 1):
                 heartbeat_message += (
-                    f"{i}. {announcement['scrip']} ({announcement['date']})\n"
+                    f"{i}. {announcement['scrip']}\n"
+                    f"   {announcement['category']} | {announcement['date'][:10]}\n"
                     f"   {announcement['title'][:60]}...\n\n"
                 )
             send_telegram(heartbeat_message)
