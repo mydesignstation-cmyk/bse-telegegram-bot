@@ -42,6 +42,24 @@ def save_last_seen(data):
     with open(STATE_FILE, "w") as f:
         json.dump(data, f)
 
+# --- HELPERS ---
+def clean_text(value, fallback=""):
+    """Return a stripped string or a fallback if value is falsy/None."""
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text if text else fallback
+
+
+def parse_date(raw_value):
+    if not raw_value:
+        return "Unknown"
+    try:
+        return datetime.fromisoformat(str(raw_value).replace('Z', '')).strftime('%d %b %Y %H:%M:%S')
+    except Exception:
+        return str(raw_value)
+
+
 # --- CORE LOGIC ---
 def check_bse():
     print(f"🔧 Debug - BOT_TOKEN exists: {BOT_TOKEN is not None}")
@@ -90,17 +108,13 @@ def check_bse():
 
     # Check first 10 announcements for new ones
     for ann in announcements[:10]:
-        news_id = ann.get('NEWSID', '')
-        scrip = ann.get('SLONGNAME', '')
-        title = ann.get('NEWSSUB', '')
-        category = ann.get('CATEGORYNAME', '').strip() or "Unspecified"
-        news_dt_raw = ann.get('NEWS_DT', '')
-        try:
-            news_dt = datetime.fromisoformat(news_dt_raw.replace('Z', '')).strftime('%d %b %Y %H:%M:%S')
-        except Exception:
-            news_dt = news_dt_raw
-        attachment = ann.get('ATTACHMENTNAME', '')
-        
+        news_id = clean_text(ann.get('NEWSID'))
+        scrip = clean_text(ann.get('SLONGNAME'))
+        title = clean_text(ann.get('NEWSSUB'))
+        category = clean_text(ann.get('CATEGORYNAME'), "Unspecified")
+        news_dt = parse_date(ann.get('NEWS_DT'))
+        attachment = clean_text(ann.get('ATTACHMENTNAME'))
+
         pdf_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{attachment}" if attachment else ""
         
         announcement = {
@@ -134,12 +148,12 @@ def check_bse():
     if announcements:
         current_announcements = [
             {
-                "news_id": ann.get('NEWSID', ''),
-                "scrip": ann.get('SLONGNAME', ''),
-                "title": ann.get('NEWSSUB', ''),
-                "category": (ann.get('CATEGORYNAME', '') or "Unspecified").strip(),
-                "date": ann.get('NEWS_DT', ''),
-                "pdf": f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{ann.get('ATTACHMENTNAME', '')}" if ann.get('ATTACHMENTNAME') else ""
+                "news_id": clean_text(ann.get('NEWSID')),
+                "scrip": clean_text(ann.get('SLONGNAME')),
+                "title": clean_text(ann.get('NEWSSUB')),
+                "category": clean_text(ann.get('CATEGORYNAME'), "Unspecified"),
+                "date": parse_date(ann.get('NEWS_DT')),
+                "pdf": f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{clean_text(ann.get('ATTACHMENTNAME'))}" if clean_text(ann.get('ATTACHMENTNAME')) else ""
             }
             for ann in announcements[:10]
         ]
