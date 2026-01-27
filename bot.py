@@ -38,18 +38,24 @@ def save_last_seen(data):
 
 # --- CORE LOGIC ---
 def check_bse():
+    print("🔍 Fetching BSE page...")
     response = requests.get(BSE_URL, headers=HEADERS, timeout=15)
     soup = BeautifulSoup(response.text, "html.parser")
 
     table = soup.find("table")
     if not table:
+        print("❌ No table found")
         return
 
     rows = table.find_all("tr")[1:]
     if not rows:
+        print("❌ No rows found")
         return
 
+    print(f"✅ Found {len(rows)} total rows")
+
     last_seen_list = load_last_seen()
+    print(f"📋 Previously tracked: {len(last_seen_list)} announcements")
     new_announcements = []
 
     # Check all rows for new announcements
@@ -75,6 +81,9 @@ def check_bse():
         # Check if this announcement is new
         if announcement not in last_seen_list:
             new_announcements.append(announcement)
+            print(f"🆕 New: {scrip} - {title[:50]}")
+
+    print(f"📢 Total new announcements: {len(new_announcements)}")
 
     # Send notifications for new announcements (in reverse order - oldest first)
     for announcement in reversed(new_announcements):
@@ -86,6 +95,7 @@ def check_bse():
             f"{announcement['pdf']}"
         )
         send_telegram(message)
+        print(f"✅ Sent notification for {announcement['scrip']}")
 
     # Update last_seen with current announcements
     if rows:
@@ -110,6 +120,7 @@ def check_bse():
             })
 
         save_last_seen(current_announcements)
+        print(f"💾 Saved {len(current_announcements)} announcements to state")
 
 # --- ENTRY ---
 if __name__ == "__main__":
