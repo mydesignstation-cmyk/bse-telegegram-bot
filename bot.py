@@ -82,8 +82,12 @@ def check_bse():
         news_id = ann.get('NEWSID', '')
         scrip = ann.get('SLONGNAME', '')
         title = ann.get('NEWSSUB', '')
-        category = ann.get('CATEGORYNAME', '')
-        news_dt = ann.get('NEWS_DT', '')
+        category = ann.get('CATEGORYNAME', '').strip() or "Unspecified"
+        news_dt_raw = ann.get('NEWS_DT', '')
+        try:
+            news_dt = datetime.fromisoformat(news_dt_raw.replace('Z', '')).strftime('%d %b %Y %H:%M:%S')
+        except Exception:
+            news_dt = news_dt_raw
         attachment = ann.get('ATTACHMENTNAME', '')
         
         pdf_url = f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{attachment}" if attachment else ""
@@ -105,12 +109,13 @@ def check_bse():
 
     for announcement in reversed(new_announcements):
         message = (
-            "📢 NEW BSE ANNOUNCEMENT\n\n"
-            f"Category: {announcement['category']}\n"
-            f"Date: {announcement['date']}\n"
-            f"Scrip: {announcement['scrip']}\n"
-            f"Title: {announcement['title']}\n\n"
-            f"{announcement['pdf']}"
+            "📢 NEW BSE ANNOUNCEMENT\n"
+            "——————————————\n"
+            f"Category : {announcement['category']}\n"
+            f"When     : {announcement['date']}\n"
+            f"Scrip    : {announcement['scrip']}\n"
+            f"Title    : {announcement['title']}\n"
+            f"PDF      : {announcement['pdf']}"
         )
         send_telegram(message)
         print(f"✅ Sent notification for {announcement['scrip']}")
@@ -121,7 +126,7 @@ def check_bse():
                 "news_id": ann.get('NEWSID', ''),
                 "scrip": ann.get('SLONGNAME', ''),
                 "title": ann.get('NEWSSUB', ''),
-                "category": ann.get('CATEGORYNAME', ''),
+                "category": (ann.get('CATEGORYNAME', '') or "Unspecified").strip(),
                 "date": ann.get('NEWS_DT', ''),
                 "pdf": f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{ann.get('ATTACHMENTNAME', '')}" if ann.get('ATTACHMENTNAME') else ""
             }
@@ -137,8 +142,9 @@ def check_bse():
             for i, announcement in enumerate(current_announcements[:3], 1):
                 heartbeat_message += (
                     f"{i}. {announcement['scrip']}\n"
-                    f"   {announcement['category']} | {announcement['date'][:10]}\n"
-                    f"   {announcement['title'][:60]}...\n\n"
+                    f"   {announcement['category']} | {announcement['date'][:19]}\n"
+                    f"   {announcement['title'][:90]}\n"
+                    f"   PDF: {announcement['pdf']}\n\n"
                 )
             send_telegram(heartbeat_message)
             print("✅ Heartbeat sent")
