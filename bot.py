@@ -37,6 +37,8 @@ def save_last_seen(data):
         json.dump(data, f)
 
 def check_bse():
+    print(f"BOT_TOKEN exists: {BOT_TOKEN is not None}")
+    print(f"CHAT_ID: {CHAT_ID}")
     print("Sending forced Telegram test message…")
     send_telegram("🧪 FORCE TEST: Telegram delivery check")
 
