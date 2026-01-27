@@ -6,12 +6,10 @@ from bs4 import BeautifulSoup
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# Vishnu Prakash R Punglia Ltd BSE scrip code
-SCRIP_CODE = "543974"
-
 STATE_FILE = "last_seen.json"
 
-BSE_URL = f"https://www.bseindia.com/corporates/ann.html?scripcode={SCRIP_CODE}&flag=ANN"
+# ALL announcements (no scrip filter)
+BSE_URL = "https://www.bseindia.com/corporates/ann.html"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
@@ -22,8 +20,7 @@ def send_telegram(message):
     payload = {
         "chat_id": CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False
+        "disable_web_page_preview": True
     }
     requests.post(url, json=payload, timeout=10)
 
@@ -47,12 +44,15 @@ def check_bse():
         return
 
     cols = rows[0].find_all("td")
+
     date = cols[0].text.strip()
+    scrip = cols[1].text.strip()
     title = cols[2].text.strip()
     pdf = cols[2].find("a")["href"]
 
     current = {
         "date": date,
+        "scrip": scrip,
         "title": title,
         "pdf": pdf
     }
@@ -61,11 +61,11 @@ def check_bse():
 
     if current != last_seen:
         message = (
-            "🚨 *NEW BSE ANNOUNCEMENT*\n\n"
-            "*Company:* Vishnu Prakash R Punglia Ltd\n"
+            "🧪 *TEST MODE – NEW BSE ANNOUNCEMENT*\n\n"
             f"*Date:* {date}\n"
+            f"*Scrip:* {scrip}\n"
             f"*Title:* {title}\n\n"
-            f"📄 {pdf}"
+            f"{pdf}"
         )
         send_telegram(message)
         save_last_seen(current)
