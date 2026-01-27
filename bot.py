@@ -4,8 +4,9 @@ import os
 from bs4 import BeautifulSoup
 
 # --- ENV ---
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))  # MUST be int
+# Hardcoded for debugging - ROTATE THESE AFTER TESTING!
+BOT_TOKEN = "8218210704:AAH-yaFbYCd-L8bWrUqySGnDq9KLKOgjZrI"
+CHAT_ID = -1003770513009  # Must be int
 
 STATE_FILE = "last_seen.json"
 BSE_URL = "https://www.bseindia.com/corporates/ann.html"
