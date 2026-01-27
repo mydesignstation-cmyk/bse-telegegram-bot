@@ -36,6 +36,8 @@ def save_last_seen(data):
         json.dump(data, f)
 
 def check_bse():
+    send_telegram("🧪 Bot heartbeat test – workflow is running")
+
     r = requests.get(BSE_URL, headers=HEADERS, timeout=15)
     soup = BeautifulSoup(r.text, "html.parser")
 
