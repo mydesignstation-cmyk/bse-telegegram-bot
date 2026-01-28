@@ -1,6 +1,8 @@
 import requests
 import json
 import os
+import time
+from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -13,7 +15,36 @@ BSE_URL = "https://www.bseindia.com/corporates/ann.html"
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_factor=1):
+    """
+    Fetch a URL with exponential backoff retries for transient failures.
+    Returns a requests.Response on success or raises Exception after retries.
+    """
+    attempt = 1
+    while attempt <= max_attempts:
+        try:
+            print(f"⏳ API attempt {attempt} for {url}")
+            r = requests.get(url, headers=headers, timeout=timeout)
+            print(f"🔁 Fetch status: {r.status_code}")
+            if r.status_code == 200:
+                return r
+            # Retry on server errors
+            if 500 <= r.status_code < 600:
+                print(f"⏳ Server error {r.status_code}, will retry")
+            else:
+                r.raise_for_status()
+        except RequestException as exc:
+            print(f"⏳ API attempt {attempt} failed: {exc}")
+        if attempt == max_attempts:
+            break
+        sleep_time = backoff_factor * (2 ** (attempt - 1))
+        print(f"⏳ Sleeping {sleep_time}s before retry")
+        time.sleep(sleep_time)
+        attempt += 1
+    raise Exception(f"Failed to fetch {url} after {max_attempts} attempts")
+
 CRITICAL_KEYWORDS = [
+
     "resignation", "auditor", "default", "delay", "overdue",
     "liquidity", "insolvency", "ibc", "nclt", "nclat",
     "pledge", "invocation", "credit rating", "downgrade",
@@ -98,11 +129,10 @@ def classify(title):
 def check_bse():
     print("🔍 Fetching BSE announcements...")
     try:
-        r = requests.get(BSE_URL, headers=HEADERS, timeout=15)
-        print(f"🔁 Fetch status: {r.status_code}")
+        r = fetch_with_retries(BSE_URL, headers=HEADERS, timeout=20, max_attempts=5, backoff_factor=1)
         soup = BeautifulSoup(r.text, "html.parser")
     except Exception as exc:
-        print(f"❌ Error fetching BSE page: {exc}")
+        print(f"❌ Error fetching BSE page after retries: {exc}")
         return
 
     table = soup.find("table")
