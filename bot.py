@@ -62,14 +62,15 @@ def send_telegram(msg):
 
 def load_last_seen():
     try:
-        with open(STATE_FILE) as f:
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except:
+    except Exception:
         return {}
 
 def save_last_seen(data):
-    with open(STATE_FILE, "w") as f:
-        json.dump(data, f)
+    # write JSON using UTF-8 and preserve unicode characters (emojis)
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def classify(title):
     text = title.lower()
