@@ -39,4 +39,14 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config pull.rebase true
           git add last_seen.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last_seen.json [skip ci]" && git pull && git push)
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update last_seen.json [skip ci]" || echo "Commit failed (no changes or conflict) - continuing"
+            # Try to pull with rebase and autostash; if there's a merge conflict, skip the push to avoid failing the job
+            if git pull --rebase --autostash; then
+              git push
+            else
+              echo "Merge conflict pulling updates - skipping push to avoid failing the job"
+            fi
+          fi
