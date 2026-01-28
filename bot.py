@@ -43,6 +43,19 @@ def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_fa
         attempt += 1
     raise Exception(f"Failed to fetch {url} after {max_attempts} attempts")
 
+
+# Temporary helper: inject an emoji into the message when the announcement title mentions LODR.
+# This is intended for short-term verification and controlled via env vars:
+# - TEMP_LODR_TEST (default: "1") enables the injection
+# - TEMP_LODR_EMOJI sets the emoji used (default: "🧪")
+def inject_lodr_test_emoji(title_text, msg_text):
+    enabled = os.getenv("TEMP_LODR_TEST", "1").lower() in ("1", "true", "yes")
+    emoji_char = os.getenv("TEMP_LODR_EMOJI", "🧪")
+    if enabled and "lodr" in title_text.lower():
+        print("🔬 LODR detected - injecting test emoji into message")
+        return f"{emoji_char} {msg_text}"
+    return msg_text
+
 CRITICAL_KEYWORDS = [
 
     "resignation", "auditor", "default", "delay", "overdue",
@@ -187,6 +200,10 @@ def check_bse():
         f"Title: {title}\n\n"
         f"{pdf}"
     )
+
+    # Temporary: inject a test emoji when title mentions LODR so we can verify emoji rendering.
+    # Controlled by TEMP_LODR_TEST and TEMP_LODR_EMOJI env vars; this is intended to be removed later.
+    message = inject_lodr_test_emoji(title, message)
 
     print(f"📨 Payload: {message}")
     print("📨 Sending Telegram message...")
