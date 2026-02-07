@@ -36,6 +36,39 @@ except ValueError:
 
 FORCE_SEND = os.getenv("FORCE_SEND", "0").lower() in ("1", "true", "yes")
 
+# In-memory secrets storage (useful for tests/sandbox)
+SECRETS = {
+    "BOT_TOKEN": BOT_TOKEN,
+    "CHAT_ID": str(CHAT_ID) if CHAT_ID is not None else None,
+}
+
+
+def set_secrets(bot_token=None, chat_id=None):
+    """Set BOT_TOKEN and CHAT_ID in-memory and update module globals.
+
+    This also writes the values to os.environ so subprocesses and other
+    code that reads env vars can see them. Use this in tests to avoid
+    depending on external environment configuration.
+    """
+    global BOT_TOKEN, CHAT_ID
+    if bot_token is not None:
+        SECRETS["BOT_TOKEN"] = bot_token
+        os.environ["BOT_TOKEN"] = bot_token
+        BOT_TOKEN = bot_token
+    if chat_id is not None:
+        SECRETS["CHAT_ID"] = str(chat_id)
+        os.environ["CHAT_ID"] = str(chat_id)
+        try:
+            CHAT_ID = int(chat_id)
+        except Exception:
+            CHAT_ID = chat_id
+
+
+def reload_secrets_from_dotenv(dotenv_path=".env"):
+    """Reload `.env` into os.environ and update in-memory secrets."""
+    load_dotenv_override(dotenv_path)
+    set_secrets(os.getenv("BOT_TOKEN"), os.getenv("CHAT_ID"))
+
 STATE_FILE = "last_seen.json"
 BSE_URL = "https://www.bseindia.com/corporates/ann.html"
 
