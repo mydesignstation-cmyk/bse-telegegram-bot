@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4 pytest
       - name: Run tests
-        run: pytest -q
+        run: PYTHONPATH=. pytest -q
       - name: Run bot (FORCE_SEND)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
