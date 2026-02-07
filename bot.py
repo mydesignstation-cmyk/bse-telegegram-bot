@@ -41,6 +41,47 @@ BSE_URL = "https://www.bseindia.com/corporates/ann.html"
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+# Prefer BSE JSON API when available
+NEWAPI_DOMAIN = "https://api.bseindia.com/BseIndiaAPI/api/"
+API_ANN_ENDPOINT = "AnnSubCategoryGetData/w"
+
+
+def get_latest_announcement_from_api():
+    """Return a dict with keys date, scrip, title, pdf when API returns results.
+    Returns None on failure or if no announcements.
+    """
+    try:
+        today = time.strftime("%Y%m%d")
+        params = {
+            "pageno": 1,
+            "strScrip": "",
+            "strCat": "",
+            "strPrevDate": today,
+            "strToDate": today,
+            "strSearch": "P",
+            "strType": "C",
+            "subcategory": "",
+        }
+        url = NEWAPI_DOMAIN + API_ANN_ENDPOINT
+        # Use fetch_with_retries to get same retry behavior
+        r = fetch_with_retries(url, headers=HEADERS, timeout=10, max_attempts=2)
+        try:
+            data = r.json()
+        except Exception:
+            return None
+        if not data or "Table" not in data or not data["Table"]:
+            return None
+        first = data["Table"][0]
+        # Choose fields similar to HTML parsing: use NEWS_DT, SCRIP_CD or SLONGNAME, NEWSSUB, NSURL
+        date = first.get("NEWS_DT", "")
+        scrip = str(first.get("SCRIP_CD") or first.get("SLONGNAME") or "").strip()
+        title = (first.get("NEWSSUB") or first.get("HEADLINE") or "").strip()
+        pdf = first.get("NSURL") or ""
+        return {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
+    except Exception as exc:
+        print(f"🔁 API fetch failed: {exc}")
+        return None
+
 def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_factor=1):
     """
     Fetch a URL with exponential backoff retries for transient failures.
@@ -167,17 +208,54 @@ def classify(title):
 
 def check_bse():
     print("🔍 Fetching BSE announcements...")
-    try:
-        r = fetch_with_retries(BSE_URL, headers=HEADERS, timeout=20, max_attempts=5, backoff_factor=1)
-        soup = BeautifulSoup(r.text, "html.parser")
-    except Exception as exc:
-        print(f"❌ Error fetching BSE page after retries: {exc}")
-        return
+    # Try API-first
+    api_row = get_latest_announcement_from_api()
+    if api_row:
+        date = api_row["date"]
+        scrip = api_row["scrip"]
+        title = api_row["title"]
+        pdf = api_row["pdf"]
+        current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
+        print(f"ℹ️ Latest announcement (from API): {scrip} - {title[:80]}")
+    else:
+        try:
+            r = fetch_with_retries(BSE_URL, headers=HEADERS, timeout=20, max_attempts=5, backoff_factor=1)
+            soup = BeautifulSoup(r.text, "html.parser")
+        except Exception as exc:
+            print(f"❌ Error fetching BSE page after retries: {exc}")
+            return
 
-    table = soup.find("table")
-    if not table:
-        print("⚠️ No table found on BSE page")
-        return
+        table = soup.find("table")
+        if not table:
+            print("⚠️ No table found on BSE page")
+            return
+
+        rows = table.find_all("tr")
+        print(f"ℹ️ Found {len(rows)} rows in announcements table")
+
+        # find the first row that looks like an announcement (has at least 3 columns)
+        target_row = None
+        for r in rows[1:]:
+            cols = r.find_all("td")
+            if len(cols) >= 3:
+                target_row = r
+                break
+
+        if not target_row:
+            print("⚠️ No suitable announcement row found")
+            return
+
+        cols = target_row.find_all("td")
+        print(f"ℹ️ Found {len(cols)} columns in selected announcement row")
+
+        date = cols[0].text.strip()
+        scrip = cols[1].text.strip()
+        title = cols[2].text.strip()
+        link = cols[2].find("a")
+        pdf = link["href"] if link else ""
+
+        current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
+        print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
 
     rows = table.find_all("tr")
     print(f"ℹ️ Found {len(rows)} rows in announcements table")
