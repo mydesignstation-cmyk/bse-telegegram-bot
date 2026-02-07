@@ -9,8 +9,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID_STR = os.getenv("CHAT_ID")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "test_token")  # Default for testing
+CHAT_ID_STR = os.getenv("CHAT_ID", "123456789")  # Default for testing
 CHAT_ID = int(CHAT_ID_STR) if CHAT_ID_STR else None
 FORCE_SEND = os.getenv("FORCE_SEND", "0").lower() in ("1", "true", "yes")
 
