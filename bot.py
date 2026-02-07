@@ -206,6 +206,22 @@ def check_bse():
     current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
     print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
 
+    # Quick guard: detect templated / placeholder content (e.g., server-side templates left in HTML)
+    def is_templated(text):
+        if not text:
+            return False
+        # Common markers observed: `{{ ... }}` templates and identifiers like 'CorpannData' or 'cann.'
+        templ_markers = ["{{", "}}", "CorpannData", "cann.", "CorpannData.Table"]
+        for m in templ_markers:
+            if m in text:
+                return True
+        return False
+
+    if is_templated(date) or is_templated(scrip) or is_templated(title) or is_templated(pdf):
+        print("⚠️ Templated content detected in scraped fields; skipping send and updating state")
+        save_last_seen(current)
+        return
+
     if current == load_last_seen() and not FORCE_SEND:
         print("ℹ️ Announcement matches last_seen; no action taken")
         return
