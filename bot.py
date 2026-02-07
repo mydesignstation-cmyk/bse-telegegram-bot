@@ -96,13 +96,22 @@ def get_latest_announcement_from_api():
             "subcategory": "",
         }
         url = NEWAPI_DOMAIN + API_ANN_ENDPOINT
+        # Use stronger headers (Accept + Referer + Origin) to prompt JSON response
+        api_headers = HEADERS.copy()
+        api_headers.update({
+            "Accept": "application/json",
+            "Referer": BSE_URL,
+            "Origin": "https://www.bseindia.com",
+        })
         # Use fetch_with_retries to get same retry behavior
-        r = fetch_with_retries(url, headers=HEADERS, timeout=10, max_attempts=2)
+        r = fetch_with_retries(url, headers=api_headers, timeout=10, max_attempts=2)
         try:
             data = r.json()
-        except Exception:
+        except Exception as exc:
+            print(f"🔁 API parse failed (not JSON): {exc}")
             return None
         if not data or "Table" not in data or not data["Table"]:
+            print("🔁 API returned no table data; falling back to HTML")
             return None
         first = data["Table"][0]
         # Choose fields similar to HTML parsing: use NEWS_DT, SCRIP_CD or SLONGNAME, NEWSSUB, NSURL
