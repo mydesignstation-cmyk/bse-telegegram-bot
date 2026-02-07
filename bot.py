@@ -15,6 +15,9 @@ BSE_URL = "https://www.bseindia.com/corporates/ann.html"
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+# List of companies to track (scrip codes)
+TRACKED_COMPANIES = ["VODAFONEIDEA"]  # Add more companies here in the future
+
 def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_factor=1):
     """
     Fetch a URL with exponential backoff retries for transient failures.
@@ -179,6 +182,11 @@ def check_bse():
 
     current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
     print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
+
+    # Check if this company is in our tracked list
+    if scrip not in TRACKED_COMPANIES:
+        print(f"ℹ️ Company {scrip} not in tracked list; skipping")
+        return
 
     if current == load_last_seen() and not FORCE_SEND:
         print("ℹ️ Announcement matches last_seen; no action taken")
