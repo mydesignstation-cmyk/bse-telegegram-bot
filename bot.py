@@ -4,16 +4,9 @@ import os
 import time
 from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-from dotenv import load_dotenv
 
-load_dotenv()  # Load environment variables from .env file
-
-BOT_TOKEN = os.getenv("BOT_TOKEN", "test_token")  # Default for testing
-CHAT_ID_STR = os.getenv("CHAT_ID", "123456789")  # Default for testing
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+CHAT_ID_STR = os.getenv("CHAT_ID")
 CHAT_ID = int(CHAT_ID_STR) if CHAT_ID_STR else None
 FORCE_SEND = os.getenv("FORCE_SEND", "0").lower() in ("1", "true", "yes")
 
@@ -21,9 +14,6 @@ STATE_FILE = "last_seen.json"
 BSE_URL = "https://www.bseindia.com/corporates/ann.html"
 
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-# List of companies to track (scrip codes)
-TRACKED_COMPANIES = ["VODAFONEIDEA"]  # Add more companies here in the future
 
 def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_factor=1):
     """
@@ -152,30 +142,15 @@ def classify(title):
 def check_bse():
     print("🔍 Fetching BSE announcements...")
     try:
-        # Use Selenium to handle dynamic content
-        options = Options()
-        options.add_argument("--headless")  # Run in headless mode
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.binary_location = "/usr/bin/google-chrome-stable"
-        driver = webdriver.Chrome(service=Service(), options=options)
-        driver.get(BSE_URL)
-        time.sleep(5)  # Wait for JS to load
-        page_source = driver.page_source
-        driver.quit()
-        soup = BeautifulSoup(page_source, "html.parser")
+        r = fetch_with_retries(BSE_URL, headers=HEADERS, timeout=20, max_attempts=5, backoff_factor=1)
+        soup = BeautifulSoup(r.text, "html.parser")
     except Exception as exc:
-        print(f"❌ Error fetching BSE page with Selenium: {exc}")
-        message = f"❌ Error fetching BSE announcements: {exc}"
-        send_telegram(message)
+        print(f"❌ Error fetching BSE page after retries: {exc}")
         return
 
     table = soup.find("table")
     if not table:
         print("⚠️ No table found on BSE page")
-        message = "ℹ️ No new announcements for Vodafone Idea today"
-        send_telegram(message)
         return
 
     rows = table.find_all("tr")
@@ -191,8 +166,6 @@ def check_bse():
 
     if not target_row:
         print("⚠️ No suitable announcement row found")
-        message = "ℹ️ No new announcements for Vodafone Idea today"
-        send_telegram(message)
         return
 
     cols = target_row.find_all("td")
@@ -207,17 +180,8 @@ def check_bse():
     current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
     print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
 
-    # Check if this company is in our tracked list
-    if scrip not in TRACKED_COMPANIES:
-        print(f"ℹ️ Company {scrip} not in tracked list; sending no news message")
-        message = f"ℹ️ No new announcements for Vodafone Idea today"
-        send_telegram(message)
-        return
-
     if current == load_last_seen() and not FORCE_SEND:
-        print("ℹ️ Announcement matches last_seen; sending no news message")
-        message = f"ℹ️ No new announcements for Vodafone Idea today"
-        send_telegram(message)
+        print("ℹ️ Announcement matches last_seen; no action taken")
         return
     if FORCE_SEND and current == load_last_seen():
         print("⚠️ FORCE_SEND enabled — overriding last_seen and forcing send")
@@ -225,9 +189,7 @@ def check_bse():
     emoji, tag = classify(title)
     print(f"ℹ️ Classification result: emoji={emoji} tag={tag}")
     if not emoji:
-        print("ℹ️ Announcement ignored by keyword filters; sending no news message")
-        message = f"ℹ️ No new BSE announcements found for tracked companies.\n\nLatest announcement ignored by filters: {scrip} - {title[:100]}..."
-        send_telegram(message)
+        print("ℹ️ Announcement ignored by keyword filters; updating state and exiting")
         save_last_seen(current)
         return
 
