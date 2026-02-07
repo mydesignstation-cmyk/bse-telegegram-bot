@@ -8,6 +8,9 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables from .env file
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "test_token")  # Default for testing
 CHAT_ID_STR = os.getenv("CHAT_ID", "123456789")  # Default for testing
