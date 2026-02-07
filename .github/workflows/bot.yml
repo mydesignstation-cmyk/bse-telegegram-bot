@@ -22,7 +22,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 pytest
+        run: pip install requests beautifulsoup4 pytest selenium webdriver-manager
 
       - name: Run tests
         run: pytest -q
