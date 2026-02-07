@@ -5,9 +5,35 @@ import time
 from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
 
+# Load variables from .env and override environment variables (sandbox/testing mode)
+def load_dotenv_override(dotenv_path=".env"):
+    try:
+        with open(dotenv_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                os.environ[key] = val
+        print(f"ℹ️ Loaded environment variables from {dotenv_path}")
+    except FileNotFoundError:
+        pass
+
+# Force-load .env values and override any existing environment variables (permanent for sandbox/testing)
+load_dotenv_override()
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID_STR = os.getenv("CHAT_ID")
-CHAT_ID = int(CHAT_ID_STR) if CHAT_ID_STR else None
+try:
+    CHAT_ID = int(CHAT_ID_STR) if CHAT_ID_STR else None
+except ValueError:
+    # If CHAT_ID isn't an int for some reason, keep the raw string
+    CHAT_ID = CHAT_ID_STR
+
 FORCE_SEND = os.getenv("FORCE_SEND", "0").lower() in ("1", "true", "yes")
 
 STATE_FILE = "last_seen.json"
