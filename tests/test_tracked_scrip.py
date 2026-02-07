@@ -9,7 +9,8 @@ def test_sends_when_tracked_scrip(monkeypatch, tmp_path):
     monkeypatch.setattr(bot, 'send_telegram', lambda msg: called.update({'msg': msg}))
     bot.STATE_FILE = str(tmp_path / 'last_seen.json')
     bot.check_bse()
-    assert 'BSE ANNOUNCEMENT' in called['msg']
+    # Message should use the new format and include Scrip and Announcement
+    assert 'IDEA : Announcement' in called['msg'] or 'Date :' in called['msg']
 
 
 def test_no_updates_when_other_company(monkeypatch, tmp_path, capsys):

@@ -347,12 +347,24 @@ def check_bse():
         save_last_seen(current)
         return
 
+    # Message format per request:
+    # Scrip Name : Announcement
+    # ---
+    # Date :
+    # ---
+    # Title :
+    # ---
+    # Link :
+    prefix = f"{emoji} " if emoji else ""
+    header = f"{prefix}{scrip} : Announcement"
     message = (
-        f"{emoji} BSE ANNOUNCEMENT – {tag}\n\n"
-        f"Date: {date}\n"
-        f"Scrip: {scrip}\n"
-        f"Title: {title}\n\n"
-        f"{pdf}"
+        f"{header}\n"
+        f"---\n"
+        f"Date : {date}\n"
+        f"---\n"
+        f"Title : {title}\n"
+        f"---\n"
+        f"Link : {pdf}"
     )
 
     # Temporary: inject a test emoji when title mentions LODR so we can verify emoji rendering.
