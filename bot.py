@@ -257,32 +257,6 @@ def check_bse():
         current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
         print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
 
-    rows = table.find_all("tr")
-    print(f"ℹ️ Found {len(rows)} rows in announcements table")
-
-    # find the first row that looks like an announcement (has at least 3 columns)
-    target_row = None
-    for r in rows[1:]:
-        cols = r.find_all("td")
-        if len(cols) >= 3:
-            target_row = r
-            break
-
-    if not target_row:
-        print("⚠️ No suitable announcement row found")
-        return
-
-    cols = target_row.find_all("td")
-    print(f"ℹ️ Found {len(cols)} columns in selected announcement row")
-
-    date = cols[0].text.strip()
-    scrip = cols[1].text.strip()
-    title = cols[2].text.strip()
-    link = cols[2].find("a")
-    pdf = link["href"] if link else ""
-
-    current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
-    print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
 
     # Quick guard: detect templated / placeholder content (e.g., server-side templates left in HTML)
     def is_templated(text):
