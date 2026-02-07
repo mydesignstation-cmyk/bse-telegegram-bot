@@ -24,11 +24,11 @@ def test_templated_content_skipped(monkeypatch, tmp_path, capsys):
     </body></html>
     """
 
-    # Ensure .env values don't cause a real send; monkeypatch send_telegram to track calls
-    called = {"sent": False}
+    # Ensure .env values don't cause a real send; monkeypatch send_telegram to capture message
+    captured_send = {"msg": None}
 
     def fake_send(msg):
-        called["sent"] = True
+        captured_send["msg"] = msg
 
     monkeypatch.setattr(bot, "send_telegram", fake_send)
     # Make fetch_with_retries return our templated HTML
@@ -43,8 +43,9 @@ def test_templated_content_skipped(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
     assert "Templated content detected" in captured.out
 
-    # Ensure send_telegram was NOT called
-    assert called["sent"] is False
+    # Ensure send_telegram was called with the no-updates message
+    assert captured_send["msg"] is not None
+    assert "No new announcements for NSE Symbol" in captured_send["msg"]
 
     # The templated announcement should be recorded to last_seen to avoid repeated noisy runs
     with open(bot.STATE_FILE, "r", encoding="utf-8") as f:

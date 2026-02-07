@@ -315,7 +315,10 @@ def check_bse():
         return False
 
     if is_templated(date) or is_templated(scrip) or is_templated(title) or is_templated(pdf):
-        print("⚠️ Templated content detected in scraped fields; skipping send and updating state")
+        print("⚠️ Templated content detected in scraped fields; sending 'no updates' message and updating state")
+        tracked = TRACKED_SCRIP.upper() if 'TRACKED_SCRIP' in globals() else 'IDEA'
+        message = f"ℹ️ No new announcements for NSE Symbol: {tracked}"
+        send_telegram(message)
         save_last_seen(current)
         return
 

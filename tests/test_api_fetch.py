@@ -59,15 +59,16 @@ def test_api_failure_fallback_to_html(monkeypatch, tmp_path, capsys):
     r.text = templ_html
     monkeypatch.setattr(bot, "fetch_with_retries", lambda *args, **kwargs: r)
 
-    called = {"sent": False}
-    monkeypatch.setattr(bot, "send_telegram", lambda msg: called.update({"sent": True}))
+    captured_send = {"msg": None}
+    monkeypatch.setattr(bot, "send_telegram", lambda msg: captured_send.update({"msg": msg}))
 
     bot.STATE_FILE = str(tmp_path / "last_seen.json")
     bot.check_bse()
 
     captured = capsys.readouterr()
     assert "Templated content detected" in captured.out
-    assert called["sent"] is False
+    assert captured_send["msg"] is not None
+    assert "No new announcements for NSE Symbol" in captured_send["msg"]
     with open(bot.STATE_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     assert "CorpannData" in data["title"] or "CorpannData" in data["scrip"]
