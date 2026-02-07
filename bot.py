@@ -164,11 +164,15 @@ def check_bse():
         soup = BeautifulSoup(page_source, "html.parser")
     except Exception as exc:
         print(f"❌ Error fetching BSE page with Selenium: {exc}")
+        message = f"❌ Error fetching BSE announcements: {exc}"
+        send_telegram(message)
         return
 
     table = soup.find("table")
     if not table:
         print("⚠️ No table found on BSE page")
+        message = "⚠️ No announcements table found on BSE page"
+        send_telegram(message)
         return
 
     rows = table.find_all("tr")
@@ -184,6 +188,8 @@ def check_bse():
 
     if not target_row:
         print("⚠️ No suitable announcement row found")
+        message = "⚠️ No announcement data found on BSE page"
+        send_telegram(message)
         return
 
     cols = target_row.find_all("td")
@@ -200,11 +206,15 @@ def check_bse():
 
     # Check if this company is in our tracked list
     if scrip not in TRACKED_COMPANIES:
-        print(f"ℹ️ Company {scrip} not in tracked list; skipping")
+        print(f"ℹ️ Company {scrip} not in tracked list; sending no news message")
+        message = f"ℹ️ No new BSE announcements found for tracked companies.\n\nLatest announcement is for {scrip}: {title[:100]}..."
+        send_telegram(message)
         return
 
     if current == load_last_seen() and not FORCE_SEND:
-        print("ℹ️ Announcement matches last_seen; no action taken")
+        print("ℹ️ Announcement matches last_seen; sending no news message")
+        message = f"ℹ️ No new BSE announcements found for tracked companies.\n\nLatest announcement (already seen): {scrip} - {title[:100]}..."
+        send_telegram(message)
         return
     if FORCE_SEND and current == load_last_seen():
         print("⚠️ FORCE_SEND enabled — overriding last_seen and forcing send")
@@ -212,7 +222,9 @@ def check_bse():
     emoji, tag = classify(title)
     print(f"ℹ️ Classification result: emoji={emoji} tag={tag}")
     if not emoji:
-        print("ℹ️ Announcement ignored by keyword filters; updating state and exiting")
+        print("ℹ️ Announcement ignored by keyword filters; sending no news message")
+        message = f"ℹ️ No new BSE announcements found for tracked companies.\n\nLatest announcement ignored by filters: {scrip} - {title[:100]}..."
+        send_telegram(message)
         save_last_seen(current)
         return
 
