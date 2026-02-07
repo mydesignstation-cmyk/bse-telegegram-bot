@@ -4,6 +4,10 @@ import os
 import time
 from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID_STR = os.getenv("CHAT_ID")
@@ -145,10 +149,19 @@ def classify(title):
 def check_bse():
     print("🔍 Fetching BSE announcements...")
     try:
-        r = fetch_with_retries(BSE_URL, headers=HEADERS, timeout=20, max_attempts=5, backoff_factor=1)
-        soup = BeautifulSoup(r.text, "html.parser")
+        # Use Selenium to handle dynamic content
+        options = Options()
+        options.add_argument("--headless")  # Run in headless mode
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        driver = webdriver.Chrome(service=Service(), options=options)
+        driver.get(BSE_URL)
+        time.sleep(5)  # Wait for JS to load
+        page_source = driver.page_source
+        driver.quit()
+        soup = BeautifulSoup(page_source, "html.parser")
     except Exception as exc:
-        print(f"❌ Error fetching BSE page after retries: {exc}")
+        print(f"❌ Error fetching BSE page with Selenium: {exc}")
         return
 
     table = soup.find("table")
