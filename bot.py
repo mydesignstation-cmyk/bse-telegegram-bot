@@ -154,6 +154,8 @@ def check_bse():
         options.add_argument("--headless")  # Run in headless mode
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.binary_location = "/usr/bin/google-chrome-stable"
         driver = webdriver.Chrome(service=Service(), options=options)
         driver.get(BSE_URL)
         time.sleep(5)  # Wait for JS to load
