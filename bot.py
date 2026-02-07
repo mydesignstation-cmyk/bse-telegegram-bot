@@ -78,6 +78,9 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 NEWAPI_DOMAIN = "https://api.bseindia.com/BseIndiaAPI/api/"
 API_ANN_ENDPOINT = "AnnSubCategoryGetData/w"
 
+# Scrip to track (NSE symbol). Can be overridden via env var TRACKED_SCRIP
+TRACKED_SCRIP = os.getenv("TRACKED_SCRIP", "IDEA").upper()
+
 
 def get_latest_announcement_from_api():
     """Return a dict with keys date, scrip, title, pdf when API returns results.
@@ -316,8 +319,20 @@ def check_bse():
         save_last_seen(current)
         return
 
+    # Only care about our tracked scrip (NSE Symbol). If latest announcement is not about it, send a 'no updates' message.
+    tracked = TRACKED_SCRIP.upper() if 'TRACKED_SCRIP' in globals() else None
+    scrip_upper = (scrip or "").upper()
+    title_upper = (title or "").upper()
+    is_for_tracked = tracked and (tracked in scrip_upper or tracked in title_upper)
+
+    if not is_for_tracked:
+        message = f"ℹ️ No new announcements for NSE Symbol: {tracked}"
+        send_telegram(message)
+        return
+
     if current == load_last_seen() and not FORCE_SEND:
-        print("ℹ️ Announcement matches last_seen; no action taken")
+        message = f"ℹ️ No new announcements for NSE Symbol: {tracked}"
+        send_telegram(message)
         return
     if FORCE_SEND and current == load_last_seen():
         print("⚠️ FORCE_SEND enabled — overriding last_seen and forcing send")
