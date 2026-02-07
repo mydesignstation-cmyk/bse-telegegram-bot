@@ -171,7 +171,7 @@ def check_bse():
     table = soup.find("table")
     if not table:
         print("⚠️ No table found on BSE page")
-        message = "⚠️ No announcements table found on BSE page"
+        message = "ℹ️ No new announcements for Vodafone Idea today"
         send_telegram(message)
         return
 
@@ -188,7 +188,7 @@ def check_bse():
 
     if not target_row:
         print("⚠️ No suitable announcement row found")
-        message = "⚠️ No announcement data found on BSE page"
+        message = "ℹ️ No new announcements for Vodafone Idea today"
         send_telegram(message)
         return
 
@@ -207,13 +207,13 @@ def check_bse():
     # Check if this company is in our tracked list
     if scrip not in TRACKED_COMPANIES:
         print(f"ℹ️ Company {scrip} not in tracked list; sending no news message")
-        message = f"ℹ️ No new BSE announcements found for tracked companies.\n\nLatest announcement is for {scrip}: {title[:100]}..."
+        message = f"ℹ️ No new announcements for Vodafone Idea today"
         send_telegram(message)
         return
 
     if current == load_last_seen() and not FORCE_SEND:
         print("ℹ️ Announcement matches last_seen; sending no news message")
-        message = f"ℹ️ No new BSE announcements found for tracked companies.\n\nLatest announcement (already seen): {scrip} - {title[:100]}..."
+        message = f"ℹ️ No new announcements for Vodafone Idea today"
         send_telegram(message)
         return
     if FORCE_SEND and current == load_last_seen():
