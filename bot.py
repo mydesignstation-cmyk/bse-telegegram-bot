@@ -82,12 +82,19 @@ API_ANN_ENDPOINT = "AnnSubCategoryGetData/w"
 # Scrips to track (comma-separated NSE symbols). Can be overridden via env var TRACKED_SCRIP
 # Default list requested by user
 # Example: TRACKED_SCRIP="539594,VPRPL,OLECTRA,TITAGARH,ASTRAL,AGI,JIOFIN,BLS"
-_default_tracked = "539594,VPRPL,OLECTRA,TITAGARH,ASTRAL,AGI,JIOFIN,BLS"
+_default_tracked = "539594,VPRPL,OLECTRA,TITAGARH,ASTRAL,AGI,JIOFIN,BLS,CDSL,UNOMINDA,HSCL,MAZDOCK,COCHINSHIP,TDPOWERSYS,PIXTRANS,ASTRAMICRO,CAMS,IOC,AIAENG,TRITRUBINE,AWHCL,SONACOMS,ZAGGLE,OFSS,IRFC,SAMMANCAP"
 _env_tracked = os.getenv("TRACKED_SCRIP")
 # Treat empty string as "not set" so an empty env var does NOT override the default list
 TRACKED_SCRIP = _env_tracked if _env_tracked is not None and _env_tracked.strip() else _default_tracked
 # Normalize to a list of uppercase symbols (ignore empty entries)
 TRACKED_SCRIP_LIST = [s.strip().upper() for s in TRACKED_SCRIP.split(",") if s.strip()]
+
+
+def get_tracked_display():
+    """Return a human-friendly, comma-separated display of tracked scripts.
+    Falls back to the raw `TRACKED_SCRIP` string if the list is empty.
+    """
+    return ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else TRACKED_SCRIP
 
 
 def get_latest_announcement_from_api():
@@ -98,7 +105,7 @@ def get_latest_announcement_from_api():
         today = time.strftime("%Y%m%d")
         params = {
             "pageno": 1,
-            "strScrip": "",
+            "strScrip": TRACKED_SCRIP,
             "strCat": "",
             "strPrevDate": today,
             "strToDate": today,
@@ -115,7 +122,7 @@ def get_latest_announcement_from_api():
             "Origin": "https://www.bseindia.com",
         })
         # Use fetch_with_retries to get same retry behavior
-        r = fetch_with_retries(url, headers=api_headers, timeout=10, max_attempts=2)
+        r = fetch_with_retries(url, headers=api_headers, timeout=10, max_attempts=2, params=params)
         try:
             data = r.json()
         except Exception as exc:
@@ -135,7 +142,7 @@ def get_latest_announcement_from_api():
         print(f"🔁 API fetch failed: {exc}")
         return None
 
-def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_factor=1):
+def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_factor=1, params=None):
     """
     Fetch a URL with exponential backoff retries for transient failures.
     Returns a requests.Response on success or raises Exception after retries.
@@ -144,7 +151,7 @@ def fetch_with_retries(url, headers=None, timeout=20, max_attempts=5, backoff_fa
     while attempt <= max_attempts:
         try:
             print(f"⏳ API attempt {attempt} for {url}")
-            r = requests.get(url, headers=headers, timeout=timeout)
+            r = requests.get(url, headers=headers, timeout=timeout, params=params)
             print(f"🔁 Fetch status: {r.status_code}")
             if r.status_code == 200:
                 return r
@@ -276,7 +283,7 @@ def check_bse():
             soup = BeautifulSoup(r.text, "html.parser")
         except Exception as exc:
             print(f"❌ Error fetching BSE page after retries: {exc}")
-            tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+            tracked = get_tracked_display()
             message = f"No New anouncement for NSE Symbol : {tracked}"
             send_telegram(message)
             return
@@ -284,7 +291,7 @@ def check_bse():
         table = soup.find("table")
         if not table:
             print("⚠️ No table found on BSE page")
-            tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+            tracked = get_tracked_display()
             message = f"No New anouncement for NSE Symbol : {tracked}"
             send_telegram(message)
             return
@@ -302,7 +309,7 @@ def check_bse():
 
         if not target_row:
             print("⚠️ No suitable announcement row found")
-            tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+            tracked = get_tracked_display()
             message = f"No New anouncement for NSE Symbol : {tracked}"
             send_telegram(message)
             return
@@ -333,7 +340,7 @@ def check_bse():
 
     if is_templated(date) or is_templated(scrip) or is_templated(title) or is_templated(pdf):
         print("⚠️ Templated content detected in scraped fields; sending 'no updates' message and updating state")
-        tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+        tracked = get_tracked_display()
         message = f"No New anouncement for NSE Symbol : {tracked}"
         send_telegram(message)
         save_last_seen(current)
@@ -350,7 +357,7 @@ def check_bse():
 
     is_for_tracked = any((t in _tokens(scrip_upper)) or (t in _tokens(title_upper)) for t in tracked_names) if tracked_names else False
 
-    tracked = ", ".join(tracked_names) if tracked_names else 'IDEA'
+    tracked = get_tracked_display()
 
     if not is_for_tracked:
         message = f"No New anouncement for NSE Symbol : {tracked}"
