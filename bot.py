@@ -103,9 +103,10 @@ def get_latest_announcement_from_api():
     """
     try:
         today = time.strftime("%Y%m%d")
+        # Request all announcements and filter locally for our tracked scrips
         params = {
             "pageno": 1,
-            "strScrip": TRACKED_SCRIP,
+            "strScrip": "",
             "strCat": "",
             "strPrevDate": today,
             "strToDate": today,
@@ -128,11 +129,40 @@ def get_latest_announcement_from_api():
         except Exception as exc:
             print(f"🔁 API parse failed (not JSON): {exc}")
             return None
+
         if not data or "Table" not in data or not data["Table"]:
             print("🔁 API returned no table data; falling back to HTML")
             return None
+
+        # Helper to tokenize text for robust matching (same logic as check_bse)
+        def _tokens(text):
+            return re.findall(r"\w+", (text or "").upper())
+
+        # If no tracked names configured, return the first row as before
+        if not TRACKED_SCRIP_LIST:
+            first = data["Table"][0]
+            date = first.get("NEWS_DT", "")
+            scrip = str(first.get("SCRIP_CD") or first.get("SLONGNAME") or "").strip()
+            title = (first.get("NEWSSUB") or first.get("HEADLINE") or "").strip()
+            pdf = first.get("NSURL") or ""
+            return {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
+
+        # Otherwise, scan the returned table for the first row that matches our tracked list
+        for row in data["Table"]:
+            scrip_val = str(row.get("SCRIP_CD") or row.get("SLONGNAME") or "").strip()
+            title_val = (row.get("NEWSSUB") or row.get("HEADLINE") or "").strip()
+            s_tokens = _tokens(scrip_val)
+            t_tokens = _tokens(title_val)
+            is_for_tracked = any((t in s_tokens) or (t in t_tokens) for t in TRACKED_SCRIP_LIST)
+            if is_for_tracked:
+                date = row.get("NEWS_DT", "")
+                scrip = scrip_val
+                title = title_val
+                pdf = row.get("NSURL") or ""
+                return {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
+
+        print("🔁 API returned announcements but none matched tracked scrips; returning first row as fallback")
         first = data["Table"][0]
-        # Choose fields similar to HTML parsing: use NEWS_DT, SCRIP_CD or SLONGNAME, NEWSSUB, NSURL
         date = first.get("NEWS_DT", "")
         scrip = str(first.get("SCRIP_CD") or first.get("SLONGNAME") or "").strip()
         title = (first.get("NEWSSUB") or first.get("HEADLINE") or "").strip()
