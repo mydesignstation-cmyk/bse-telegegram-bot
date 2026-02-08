@@ -45,7 +45,7 @@ def test_templated_content_skipped(monkeypatch, tmp_path, capsys):
 
     # Ensure send_telegram was called with the no-updates message
     assert captured_send["msg"] is not None
-    assert "No new announcements for NSE Symbol" in captured_send["msg"]
+    assert "No New anouncement for NSE Symbol" in captured_send["msg"]
 
     # The templated announcement should be recorded to last_seen to avoid repeated noisy runs
     with open(bot.STATE_FILE, "r", encoding="utf-8") as f:

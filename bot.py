@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import time
+import re
 from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
 
@@ -78,8 +79,15 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 NEWAPI_DOMAIN = "https://api.bseindia.com/BseIndiaAPI/api/"
 API_ANN_ENDPOINT = "AnnSubCategoryGetData/w"
 
-# Scrip to track (NSE symbol). Can be overridden via env var TRACKED_SCRIP
-TRACKED_SCRIP = os.getenv("TRACKED_SCRIP", "IDEA").upper()
+# Scrips to track (comma-separated NSE symbols). Can be overridden via env var TRACKED_SCRIP
+# Default list requested by user
+# Example: TRACKED_SCRIP="539594,VPRPL,OLECTRA,TITAGARH,ASTRAL,AGI,JIOFIN,BLS"
+_default_tracked = "539594,VPRPL,OLECTRA,TITAGARH,ASTRAL,AGI,JIOFIN,BLS"
+_env_tracked = os.getenv("TRACKED_SCRIP")
+# Treat empty string as "not set" so an empty env var does NOT override the default list
+TRACKED_SCRIP = _env_tracked if _env_tracked is not None and _env_tracked.strip() else _default_tracked
+# Normalize to a list of uppercase symbols (ignore empty entries)
+TRACKED_SCRIP_LIST = [s.strip().upper() for s in TRACKED_SCRIP.split(",") if s.strip()]
 
 
 def get_latest_announcement_from_api():
@@ -268,11 +276,17 @@ def check_bse():
             soup = BeautifulSoup(r.text, "html.parser")
         except Exception as exc:
             print(f"❌ Error fetching BSE page after retries: {exc}")
+            tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+            message = f"No New anouncement for NSE Symbol : {tracked}"
+            send_telegram(message)
             return
 
         table = soup.find("table")
         if not table:
             print("⚠️ No table found on BSE page")
+            tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+            message = f"No New anouncement for NSE Symbol : {tracked}"
+            send_telegram(message)
             return
 
         rows = table.find_all("tr")
@@ -288,6 +302,9 @@ def check_bse():
 
         if not target_row:
             print("⚠️ No suitable announcement row found")
+            tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+            message = f"No New anouncement for NSE Symbol : {tracked}"
+            send_telegram(message)
             return
 
         cols = target_row.find_all("td")
@@ -316,25 +333,32 @@ def check_bse():
 
     if is_templated(date) or is_templated(scrip) or is_templated(title) or is_templated(pdf):
         print("⚠️ Templated content detected in scraped fields; sending 'no updates' message and updating state")
-        tracked = TRACKED_SCRIP.upper() if 'TRACKED_SCRIP' in globals() else 'IDEA'
-        message = f"ℹ️ No new announcements for NSE Symbol: {tracked}"
+        tracked = ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else 'IDEA'
+        message = f"No New anouncement for NSE Symbol : {tracked}"
         send_telegram(message)
         save_last_seen(current)
         return
 
-    # Only care about our tracked scrip (NSE Symbol). If latest announcement is not about it, send a 'no updates' message.
-    tracked = TRACKED_SCRIP.upper() if 'TRACKED_SCRIP' in globals() else None
+    # Only care about our tracked scrip(s). If latest announcement is not about any of them, send a 'no updates' message.
+    tracked_names = TRACKED_SCRIP_LIST if 'TRACKED_SCRIP_LIST' in globals() else []
     scrip_upper = (scrip or "").upper()
     title_upper = (title or "").upper()
-    is_for_tracked = tracked and (tracked in scrip_upper or tracked in title_upper)
+
+    # Helper: split text into 'word' tokens and match tracked names exactly (avoid substring false-positives)
+    def _tokens(text):
+        return re.findall(r"\w+", (text or "").upper())
+
+    is_for_tracked = any((t in _tokens(scrip_upper)) or (t in _tokens(title_upper)) for t in tracked_names) if tracked_names else False
+
+    tracked = ", ".join(tracked_names) if tracked_names else 'IDEA'
 
     if not is_for_tracked:
-        message = f"ℹ️ No new announcements for NSE Symbol: {tracked}"
+        message = f"No New anouncement for NSE Symbol : {tracked}"
         send_telegram(message)
         return
 
     if current == load_last_seen() and not FORCE_SEND:
-        message = f"ℹ️ No new announcements for NSE Symbol: {tracked}"
+        message = f"No New anouncement for NSE Symbol : {tracked}"
         send_telegram(message)
         return
     if FORCE_SEND and current == load_last_seen():

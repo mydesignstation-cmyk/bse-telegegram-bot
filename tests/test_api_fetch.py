@@ -24,12 +24,16 @@ def test_api_success_uses_api(monkeypatch, tmp_path):
     sent = {"ok": False}
     def fake_send(msg):
         sent["ok"] = True
-        assert "Test Co" in msg or "531380" in msg
+        # Should contain Scrip (IDEA) or numeric code
+        assert "IDEA" in msg or "531380" in msg
 
     monkeypatch.setattr(bot, "send_telegram", fake_send)
     monkeypatch.setattr(bot, "fetch_with_retries", lambda *args, **kwargs: make_resp_json(sample))
 
     bot.STATE_FILE = str(tmp_path / "last_seen.json")
+    # Ensure tracked symbols include IDEA for this test
+    monkeypatch.setattr(bot, 'TRACKED_SCRIP', "IDEA", raising=False)
+    monkeypatch.setattr(bot, 'TRACKED_SCRIP_LIST', ["IDEA"], raising=False)
     bot.check_bse()
     assert sent["ok"] is True
     with open(bot.STATE_FILE, "r", encoding="utf-8") as f:
@@ -68,7 +72,7 @@ def test_api_failure_fallback_to_html(monkeypatch, tmp_path, capsys):
     captured = capsys.readouterr()
     assert "Templated content detected" in captured.out
     assert captured_send["msg"] is not None
-    assert "No new announcements for NSE Symbol" in captured_send["msg"]
+    assert "No New anouncement for NSE Symbol" in captured_send["msg"]
     with open(bot.STATE_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
     assert "CorpannData" in data["title"] or "CorpannData" in data["scrip"]
