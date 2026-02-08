@@ -161,13 +161,37 @@ def get_latest_announcement_from_api():
                 pdf = row.get("NSURL") or ""
                 return {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
 
-        print("🔁 API returned announcements but none matched tracked scrips; returning first row as fallback")
-        first = data["Table"][0]
-        date = first.get("NEWS_DT", "")
-        scrip = str(first.get("SCRIP_CD") or first.get("SLONGNAME") or "").strip()
-        title = (first.get("NEWSSUB") or first.get("HEADLINE") or "").strip()
-        pdf = first.get("NSURL") or ""
-        return {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
+        # If none of the JSON rows matched tracked scrips, try XBRL endpoint per tracked scrip
+        try:
+            for s in TRACKED_SCRIP_LIST:
+                try:
+                    xbrl_url = "https://www.bseindia.com/Msource/90D/CorpXbrlGen.aspx"
+                    params_x = {"Scripcode": s}
+                    rx = fetch_with_retries(xbrl_url, headers=api_headers, timeout=10, max_attempts=1, params=params_x)
+                    body = rx.text
+                    if not body or '<xbrli:xbrl' not in body:
+                        continue
+                    # extract ScripCode and other fields via regex (robust to namespaces)
+                    m_s = re.search(r'<[^>]*ScripCode[^>]*>(.*?)</', body)
+                    if not m_s:
+                        continue
+                    scrip_code = m_s.group(1).strip()
+                    if scrip_code != s:
+                        continue
+                    m_date = re.search(r'<xbrli:instant>(.*?)</xbrli:instant>', body)
+                    m_subj = re.search(r'<in-bse-co:SubjectOfAnnouncement[^>]*>(.*?)</', body, re.S)
+                    m_attach = re.search(r'<in-bse-co:AttachmentURL[^>]*>(.*?)</', body, re.S)
+                    date = m_date.group(1).strip() if m_date else ""
+                    title = (m_subj.group(1).strip() if m_subj else "").replace('\n', ' ')
+                    pdf = m_attach.group(1).strip() if m_attach else ""
+                    return {"date": date, "scrip": scrip_code, "title": title, "pdf": pdf}
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        print("🔁 API returned announcements but none matched tracked scrips; returning None to trigger 'no updates' path")
+        return None
     except Exception as exc:
         print(f"🔁 API fetch failed: {exc}")
         return None
@@ -347,11 +371,44 @@ def check_bse():
         cols = target_row.find_all("td")
         print(f"ℹ️ Found {len(cols)} columns in selected announcement row")
 
-        date = cols[0].text.strip()
-        scrip = cols[1].text.strip()
-        title = cols[2].text.strip()
-        link = cols[2].find("a")
-        pdf = link["href"] if link else ""
+        # Table layouts vary. Find the most likely title cell and any numeric scrip code inside the row.
+        col_texts = [c.get_text(" ", strip=True) for c in cols]
+        # Choose title candidate as the longest text column
+        title_idx = max(range(len(col_texts)), key=lambda i: len(col_texts[i]))
+        title = col_texts[title_idx]
+        # Try to find a 5-6 digit scrip code anywhere in the columns or title
+        scrip = ""
+        for txt in col_texts:
+            m = re.search(r"\b(\d{5,6})\b", txt)
+            if m:
+                scrip = m.group(1)
+                break
+        # If no numeric scrip found, fall back to common scrip column (index 1)
+        if not scrip and len(col_texts) > 1:
+            scrip = col_texts[1]
+        # Attempt to find a pdf link in any column
+        pdf = ""
+        for c in cols:
+            a = c.find("a")
+            if a and a.get("href"):
+                pdf = a.get("href")
+                break
+        # Date: try to parse a date-like token from any column or from subsequent rows
+        date = ""
+        date_re = re.compile(r"\d{2}-\d{2}-\d{4}")
+        for txt in col_texts:
+            dm = date_re.search(txt)
+            if dm:
+                date = dm.group(0)
+                break
+        if not date:
+            # Look ahead a couple of rows for Exchange Received Time
+            next_rows = rows[rows.index(target_row) + 1: rows.index(target_row) + 4]
+            for nr in next_rows:
+                dm = date_re.search(nr.get_text())
+                if dm:
+                    date = dm.group(0)
+                    break
 
         current = {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
         print(f"ℹ️ Latest announcement: {scrip} - {title[:80]}")
