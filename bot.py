@@ -97,6 +97,33 @@ def get_tracked_display():
     return ", ".join(TRACKED_SCRIP_LIST) if TRACKED_SCRIP_LIST else TRACKED_SCRIP
 
 
+def _looks_like_attachment(url):
+    if not url:
+        return False
+    u = url.lower()
+    # common direct attachment indicators
+    if u.endswith('.pdf') or '/xml-data/' in u or 'attachdownload' in u or 'attachmenturl' in u or 'xbrl' in u:
+        return True
+    # heuristic: explicit file extension in url
+    if '.' in u and (u.split('.')[-1] in ('pdf', 'xml')):
+        return True
+    return False
+
+
+def _fetch_xbrl_attachment_for_scrip(s, api_headers=None):
+    try:
+        xbrl_url = "https://www.bseindia.com/Msource/90D/CorpXbrlGen.aspx"
+        params_x = {"Scripcode": s}
+        rx = fetch_with_retries(xbrl_url, headers=api_headers or HEADERS, timeout=10, max_attempts=1, params=params_x)
+        body = rx.text
+        if not body or '<xbrli:xbrl' not in body:
+            return ""
+        m_attach = re.search(r'<in-bse-co:AttachmentURL[^>]*>(.*?)</', body, re.S)
+        return m_attach.group(1).strip() if m_attach else ""
+    except Exception:
+        return ""
+
+
 def get_latest_announcement_from_api():
     """Return a dict with keys date, scrip, title, pdf when API returns results.
     Returns None on failure or if no announcements.
@@ -139,6 +166,31 @@ def get_latest_announcement_from_api():
             return re.findall(r"\w+", (text or "").upper())
 
         # If no tracked names configured, return the first row as before
+        def _looks_like_attachment(url):
+            if not url:
+                return False
+            u = url.lower()
+            # common direct attachment indicators
+            if u.endswith('.pdf') or '/xml-data/' in u or 'attachdownload' in u or 'attachmenturl' in u or 'xbrl' in u:
+                return True
+            # heuristic: explicit file extension in url
+            if '.' in u and (u.split('.')[-1] in ('pdf', 'xml')):
+                return True
+            return False
+
+        def _fetch_xbrl_attachment_for_scrip(s):
+            try:
+                xbrl_url = "https://www.bseindia.com/Msource/90D/CorpXbrlGen.aspx"
+                params_x = {"Scripcode": s}
+                rx = fetch_with_retries(xbrl_url, headers=api_headers, timeout=10, max_attempts=1, params=params_x)
+                body = rx.text
+                if not body or '<xbrli:xbrl' not in body:
+                    return ""
+                m_attach = re.search(r'<in-bse-co:AttachmentURL[^>]*>(.*?)</', body, re.S)
+                return m_attach.group(1).strip() if m_attach else ""
+            except Exception:
+                return ""
+
         if not TRACKED_SCRIP_LIST:
             first = data["Table"][0]
             date = first.get("NEWS_DT", "")
@@ -159,6 +211,15 @@ def get_latest_announcement_from_api():
                 scrip = scrip_val
                 title = title_val
                 pdf = row.get("NSURL") or ""
+                # If NSURL doesn't look like a direct attachment, try XBRL AttachmentURL for this scrip
+                if not _looks_like_attachment(pdf):
+                    try:
+                        import re as _re
+                        pdf_x = _fetch_xbrl_attachment_for_scrip(scrip)
+                        if pdf_x:
+                            pdf = pdf_x
+                    except Exception:
+                        pass
                 return {"date": date, "scrip": scrip, "title": title, "pdf": pdf}
 
         # If none of the JSON rows matched tracked scrips, try XBRL endpoint per tracked scrip
@@ -393,6 +454,14 @@ def check_bse():
             if a and a.get("href"):
                 pdf = a.get("href")
                 break
+        # If the found link is not an actual attachment, try XBRL AttachmentURL for the scrip
+        if not _looks_like_attachment(pdf):
+            try:
+                pdf_x = _fetch_xbrl_attachment_for_scrip(scrip, api_headers=api_headers if 'api_headers' in globals() else None)
+                if pdf_x:
+                    pdf = pdf_x
+            except Exception:
+                pass
         # Date: try to parse a date-like token from any column or from subsequent rows
         date = ""
         date_re = re.compile(r"\d{2}-\d{2}-\d{4}")
