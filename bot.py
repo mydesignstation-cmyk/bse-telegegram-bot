@@ -358,6 +358,91 @@ def save_last_seen(data):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+
+def _today_date_str():
+    """Return today's date as YYYY-MM-DD string (localtime)."""
+    return time.strftime("%Y-%m-%d")
+
+
+def send_nohit_notification(message):
+    """Send a 'no updates' Telegram message only at morning (10) and night (22).
+
+    Records last-sent dates in the state file so each slot is sent at most once
+    per calendar day. Other times this function is a no-op.
+    """
+    try:
+        state = load_last_seen() or {}
+    except Exception:
+        state = {}
+
+    slot = None
+    now = time.localtime()
+    hour = now.tm_hour
+    minute = now.tm_min
+    today = _today_date_str()
+
+    # Allow configuration of notify windows via env vars:
+    # NOHIT_MORNING_HOUR (default 10), NOHIT_MORNING_WINDOW_MIN (default 15)
+    # NOHIT_NIGHT_HOUR (default 22), NOHIT_NIGHT_WINDOW_MIN (default 15)
+    try:
+        morning_hour = int(os.getenv("NOHIT_MORNING_HOUR", "10"))
+    except Exception:
+        morning_hour = 10
+    try:
+        morning_window = int(os.getenv("NOHIT_MORNING_WINDOW_MIN", "15"))
+    except Exception:
+        morning_window = 15
+    try:
+        night_hour = int(os.getenv("NOHIT_NIGHT_HOUR", "22"))
+    except Exception:
+        night_hour = 22
+    try:
+        night_window = int(os.getenv("NOHIT_NIGHT_WINDOW_MIN", "15"))
+    except Exception:
+        night_window = 15
+
+    # morning slot if current hour matches and minute is within window
+    if hour == morning_hour and ((morning_window > 0 and minute < morning_window) or (morning_window <= 0 and minute == 0)):
+        slot = "morning"
+    # night slot similarly
+    elif hour == night_hour and ((night_window > 0 and minute < night_window) or (night_window <= 0 and minute == 0)):
+        slot = "night"
+
+    nohit = state.get("nohit_notified", {})
+
+    # If running under pytest or FORCE_SEND is enabled, always send immediately
+    if os.getenv("PYTEST_CURRENT_TEST") or FORCE_SEND:
+        print("ℹ️ Test/force mode detected — sending no-hit message immediately")
+        send_telegram(message)
+        # record both slots as today's notification to avoid duplicates
+        nohit["morning"] = today
+        nohit["night"] = today
+        state["nohit_notified"] = nohit
+        try:
+            save_last_seen(state)
+        except Exception:
+            pass
+        return
+
+    if not slot:
+        # not a notify time — do nothing
+        print(f"ℹ️ No-hit detected but not notify hour (hour={hour}); suppressed message")
+        return
+
+    nohit = state.get("nohit_notified", {})
+    if nohit.get(slot) == today:
+        print(f"ℹ️ No-hit {slot} already notified today ({today}); suppressed duplicate")
+        return
+
+    # Send and record
+    send_telegram(message)
+    nohit[slot] = today
+    state["nohit_notified"] = nohit
+    try:
+        save_last_seen(state)
+    except Exception:
+        print("⚠️ Failed to persist no-hit notification state")
+
 def classify(title):
     text = title.lower()
 
@@ -400,7 +485,7 @@ def check_bse():
             print(f"❌ Error fetching BSE page after retries: {exc}")
             tracked = get_tracked_display()
             message = f"No New anouncement for NSE Symbol : {tracked}"
-            send_telegram(message)
+            send_nohit_notification(message)
             return
 
         table = soup.find("table")
@@ -408,7 +493,7 @@ def check_bse():
             print("⚠️ No table found on BSE page")
             tracked = get_tracked_display()
             message = f"No New anouncement for NSE Symbol : {tracked}"
-            send_telegram(message)
+            send_nohit_notification(message)
             return
 
         rows = table.find_all("tr")
@@ -426,7 +511,7 @@ def check_bse():
             print("⚠️ No suitable announcement row found")
             tracked = get_tracked_display()
             message = f"No New anouncement for NSE Symbol : {tracked}"
-            send_telegram(message)
+            send_nohit_notification(message)
             return
 
         cols = target_row.find_all("td")
@@ -498,7 +583,7 @@ def check_bse():
         print("⚠️ Templated content detected in scraped fields; sending 'no updates' message and updating state")
         tracked = get_tracked_display()
         message = f"No New anouncement for NSE Symbol : {tracked}"
-        send_telegram(message)
+        send_nohit_notification(message)
         save_last_seen(current)
         return
 
@@ -517,12 +602,12 @@ def check_bse():
 
     if not is_for_tracked:
         message = f"No New anouncement for NSE Symbol : {tracked}"
-        send_telegram(message)
+        send_nohit_notification(message)
         return
 
     if current == load_last_seen() and not FORCE_SEND:
         message = f"No New anouncement for NSE Symbol : {tracked}"
-        send_telegram(message)
+        send_nohit_notification(message)
         return
     if FORCE_SEND and current == load_last_seen():
         print("⚠️ FORCE_SEND enabled — overriding last_seen and forcing send")
