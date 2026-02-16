@@ -1,6 +1,6 @@
 {
-  "date": "2026-02-16T12:25:07.347",
-  "scrip": "544107",
-  "title": "BLS E-Services Ltd - 544107 - Announcement under Regulation 30 (LODR)-Acquisition",
-  "pdf": "https://www.bseindia.com/stock-share-price/bls-e-services-ltd/blse/544107/"
+  "date": "",
+  "scrip": "Security Code : {{CorpannData.Table[0].SCRIP_CD}} Company : {{CorpannData.Table[0].SLONGNAME }}",
+  "title": "Security Code : {{CorpannData.Table[0].SCRIP_CD}} Company : {{CorpannData.Table[0].SLONGNAME }} Security Code : {{CorpannData.Table[0].SCRIP_CD}} Company : {{CorpannData.Table[0].SLONGNAME }} {{CorpannData.Table[0].NEWS_DT  | date:'dd MMM yyyy'}} {{cann.CATEGORYNAME}} Audio/Video {{cann.Fld_Attachsize/1048576 | number:2}} MB {{cann.Fld_Attachsize/1024 | number:2}} KB {{cann.Fld_Attachsize/1048576 | number:2}} MB {{cann.Fld_Attachsize/1024 | number:2}} KB {{cann.Fld_Attachsize/1048576 | number:2}} MB {{cann.Fld_Attachsize/1024 | number:2}} KB XBRL XBRL Read More.. Read less.. Exchange Received Time {{cann.News_submission_dt | date:'dd-MM-yyyy HH:mm:ss' }} Exchange Disseminated Time {{cann.DissemDT | date:'dd-MM-yyyy HH:mm:ss' }} Time Taken {{cann.TimeDiff | date:'dd-MM-yyyy HH:mm:ss'}} Exchange Disseminated Time {{cann.DissemDT | date:'dd-MM-yyyy HH:mm:ss' }} Exchange Disseminated Time {{cann.NEWS_DT | date:'dd-MM-yyyy HH:mm:ss' }}",
+  "pdf": "{{CorpannData.Table[0].NSURL}}"
 }
